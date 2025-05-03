@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BOOOOOM DIA - Conversor de Voz para Texto</title>
+    <style>
+        /* Estilos Gerais */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #6e8efb, #a777e3);
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: #333;
+        }
+        
+        .container {
+            width: 90%;
+            max-width: 800px;
+            background-color: rgba(255, 255, 255, 0.9);
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            padding: 30px;
+            margin: 40px 0;
+        }
+        
+        h1 {
+            color: #4a2c82;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+        }
+        
+        /* Área de Gravação */
+        .recording-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+        
+        .mic-btn {
+            background-color: #ff4d4d;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 80px;
+            height: 80px;
+            font-size: 24px;
+            cursor: pointer;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s;
+        }
+        
+        .mic-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.25);
+        }
+        
+        .mic-btn.recording {
+            background-color: #4CAF50;
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        
+        .status {
+            font-size: 1.2em;
+            margin-bottom: 15px;
+            font-weight: bold;
+            color: #4a2c82;
+        }
+        
+        /* Área de Resultado */
+        .result-section {
+            margin-top: 20px;
+        }
+        
+        textarea {
+            width: 100%;
+            min-height: 150px;
+            padding: 15px;
+            border-radius: 8px;
+            border: 2px solid #ddd;
+            font-size: 16px;
+            resize: vertical;
+            margin-bottom: 15px;
+        }
+        
+        .action-buttons {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+        }
+        
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+            flex: 1;
+        }
+        
+        .copy-btn {
+            background-color: #4a2c82;
+            color: white;
+        }
+        
+        .clear-btn {
+            background-color: #f44336;
+            color: white;
+        }
+        
+        .save-btn {
+            background-color: #4CAF50;
+            color: white;
+        }
+        
+        button:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+        }
+        
+        /* Rodapé */
+        footer {
+            margin-top: auto;
+            padding: 20px;
+            text-align: center;
+            color: white;
+            font-size: 0.9em;
+        }
+        
+        /* Responsividade */
+        @media (max-width: 600px) {
+            .container {
+                width: 95%;
+                padding: 20px;
+            }
+            
+            h1 {
+                font-size: 1.8em;
+            }
+            
+            .action-buttons {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>BOOOOOM DIA! 🎤</h1>
+        
+        <div class="recording-section">
+            <button class="mic-btn" id="micButton">🎤</button>
+            <div class="status" id="status">Clique no microfone para começar</div>
+        </div>
+        
+        <div class="result-section">
+            <textarea id="textResult" placeholder="Seu texto aparecerá aqui..."></textarea>
+            <div class="action-buttons">
+                <button class="copy-btn" id="copyButton">Copiar Texto</button>
+                <button class="clear-btn" id="clearButton">Limpar</button>
+                <button class="save-btn" id="saveButton">Salvar como TXT</button>
+            </div>
+        </div>
+    </div>
+    
+    <footer>
+        Converte mensagens de voz em texto | Criado com ❤️ para você
+    </footer>
+
+    <script>
+        // Elementos do DOM
+        const micButton = document.getElementById('micButton');
+        const statusElement = document.getElementById('status');
+        const textResult = document.getElementById('textResult');
+        const copyButton = document.getElementById('copyButton');
+        const clearButton = document.getElementById('clearButton');
+        const saveButton = document.getElementById('saveButton');
+        
+        // Verifica se o navegador suporta a API Web Speech
+        if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+            statusElement.textContent = 'Seu navegador não suporta reconhecimento de voz. Tente usar Chrome ou Edge.';
+            micButton.disabled = true;
+        } else {
+            // Cria o objeto de reconhecimento de voz
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            const recognition = new SpeechRecognition();
+            
+            // Configurações do reconhecimento
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.lang = 'pt-BR';
+            
+            // Evento de clique no microfone
+            micButton.addEventListener('click', () => {
+                if (micButton.classList.contains('recording')) {
+                    // Parar gravação
+                    recognition.stop();
+                    micButton.classList.remove('recording');
+                    statusElement.textContent = 'Gravação parada. Clique para gravar novamente.';
+                } else {
+                    // Começar gravação
+                    recognition.start();
+                    micButton.classList.add('recording');
+                    statusElement.textContent = 'Gravando... Fale agora!';
+                }
+            });
+            
+            // Evento de resultado
+            recognition.onresult = (event) => {
+                let interimTranscript = '';
+                let finalTranscript = '';
+                
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const transcript = event.results[i][0].transcript;
+                    if (event.results[i].isFinal) {
+                        finalTranscript += transcript + ' ';
+                    } else {
+                        interimTranscript += transcript;
+                    }
+                }
+                
+                textResult.value = finalTranscript + interimTranscript;
+            };
+            
+            // Eventos de erro
+            recognition.onerror = (event) => {
+                console.error('Erro no reconhecimento:', event.error);
+                micButton.classList.remove('recording');
+                statusElement.textContent = `Erro: ${event.error}. Clique para tentar novamente.`;
+            };
+            
+            recognition.onend = () => {
+                if (micButton.classList.contains('recording')) {
+                    recognition.start(); // Reinicia se ainda estiver no modo de gravação
+                }
+            };
+        }
+        
+        // Botão de copiar
+        copyButton.addEventListener('click', () => {
+            textResult.select();
+            document.execCommand('copy');
+            statusElement.textContent = 'Texto copiado para a área de transferência!';
+            setTimeout(() => {
+                statusElement.textContent = 'Clique no microfone para gravar novamente';
+            }, 2000);
+        });
+        
+        // Botão de limpar
+        clearButton.addEventListener('click', () => {
+            textResult.value = '';
+            statusElement.textContent = 'Área de texto limpa. Clique no microfone para gravar.';
+        });
+        
+        // Botão de salvar
+        saveButton.addEventListener('click', () => {
+            if (textResult.value.trim() === '') {
+                statusElement.textContent = 'Nada para salvar. Grave algum áudio primeiro.';
+                return;
+            }
+            
+            const blob = new Blob([textResult.value], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'transcricao.txt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            statusElement.textContent = 'Transcrição salva como arquivo TXT!';
+            setTimeout(() => {
+                statusElement.textContent = 'Clique no microfone para gravar novamente';
+            }, 2000);
+        });
+    </script>
+</body>
+</html>
