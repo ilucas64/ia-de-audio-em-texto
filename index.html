@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BOOOOOM DIA - Conversor de Voz para Texto</title>
+    <title>transcrevo audios - Conversor de Voz para Texto</title>
     <style>
         /* Estilos Gerais */
         body {
@@ -133,6 +133,83 @@
             transform: translateY(-2px);
         }
         
+        /* Seção de Histórico */
+        .history-section {
+            margin-top: 40px;
+            border-top: 2px solid #eee;
+            padding-top: 20px;
+        }
+        
+        .history-title {
+            font-size: 1.5em;
+            color: #4a2c82;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .history-list {
+            max-height: 300px;
+            overflow-y: auto;
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            padding: 10px;
+            border: 1px solid #ddd;
+        }
+        
+        .history-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .history-item:last-child {
+            border-bottom: none;
+        }
+        
+        .history-text {
+            flex: 1;
+            margin-right: 10px;
+            word-break: break-word;
+        }
+        
+        .history-date {
+            font-size: 0.8em;
+            color: #777;
+            white-space: nowrap;
+        }
+        
+        .history-actions {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .history-btn {
+            padding: 5px 10px;
+            font-size: 0.8em;
+            border-radius: 4px;
+            background-color: #ddd;
+            border: none;
+            cursor: pointer;
+        }
+        
+        .history-btn:hover {
+            background-color: #ccc;
+        }
+        
+        .clear-history {
+            background-color: #f44336;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            font-size: 0.9em;
+        }
+        
         /* Rodapé */
         footer {
             margin-top: auto;
@@ -156,6 +233,16 @@
             .action-buttons {
                 flex-direction: column;
             }
+            
+            .history-item {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .history-actions {
+                margin-top: 5px;
+                align-self: flex-end;
+            }
         }
     </style>
 </head>
@@ -176,6 +263,17 @@
                 <button class="save-btn" id="saveButton">Salvar como TXT</button>
             </div>
         </div>
+        
+        <!-- Nova seção de histórico -->
+        <div class="history-section">
+            <div class="history-title">
+                <span>Histórico de Transcrições</span>
+                <button class="clear-history" id="clearHistoryButton">Limpar Histórico</button>
+            </div>
+            <div class="history-list" id="historyList">
+                <!-- Itens de histórico serão inseridos aqui pelo JavaScript -->
+            </div>
+        </div>
     </div>
     
     <footer>
@@ -190,6 +288,14 @@
         const copyButton = document.getElementById('copyButton');
         const clearButton = document.getElementById('clearButton');
         const saveButton = document.getElementById('saveButton');
+        const clearHistoryButton = document.getElementById('clearHistoryButton');
+        const historyList = document.getElementById('historyList');
+        
+        // Chave para o LocalStorage
+        const STORAGE_KEY = 'voiceToTextHistory';
+        
+        // Carrega o histórico ao iniciar
+        loadHistory();
         
         // Verifica se o navegador suporta a API Web Speech
         if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
@@ -212,6 +318,11 @@
                     recognition.stop();
                     micButton.classList.remove('recording');
                     statusElement.textContent = 'Gravação parada. Clique para gravar novamente.';
+                    
+                    // Salva no histórico se houver texto
+                    if (textResult.value.trim() !== '') {
+                        saveToHistory(textResult.value);
+                    }
                 } else {
                     // Começar gravação
                     recognition.start();
@@ -288,7 +399,97 @@
             setTimeout(() => {
                 statusElement.textContent = 'Clique no microfone para gravar novamente';
             }, 2000);
+            
+            // Salva no histórico
+            saveToHistory(textResult.value);
         });
+        
+        // Botão de limpar histórico
+        clearHistoryButton.addEventListener('click', () => {
+            if (confirm('Tem certeza que deseja limpar todo o histórico?')) {
+                localStorage.removeItem(STORAGE_KEY);
+                historyList.innerHTML = '<div class="history-item">Nenhuma transcrição no histórico</div>';
+            }
+        });
+        
+        // Função para salvar no histórico
+        function saveToHistory(text) {
+            if (!text.trim()) return;
+            
+            // Obtém o histórico atual
+            let history = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+            
+            // Adiciona o novo item
+            history.unshift({
+                text: text,
+                date: new Date().toLocaleString()
+            });
+            
+            // Limita o histórico aos 50 últimos itens
+            if (history.length > 50) {
+                history = history.slice(0, 50);
+            }
+            
+            // Salva no LocalStorage
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+            
+            // Atualiza a exibição
+            loadHistory();
+        }
+        
+        // Função para carregar o histórico
+        function loadHistory() {
+            const history = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+            
+            if (history.length === 0) {
+                historyList.innerHTML = '<div class="history-item">Nenhuma transcrição no histórico</div>';
+                return;
+            }
+            
+            historyList.innerHTML = '';
+            
+            history.forEach((item, index) => {
+                const historyItem = document.createElement('div');
+                historyItem.className = 'history-item';
+                
+                historyItem.innerHTML = `
+                    <div class="history-text">${item.text}</div>
+                    <div class="history-date">${item.date}</div>
+                    <div class="history-actions">
+                        <button class="history-btn" onclick="copyHistoryText(${index})">Copiar</button>
+                        <button class="history-btn" onclick="deleteHistoryItem(${index})">X</button>
+                    </div>
+                `;
+                
+                historyList.appendChild(historyItem);
+            });
+        }
+        
+        // Funções globais para os botões do histórico
+        window.copyHistoryText = function(index) {
+            const history = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+            if (history[index]) {
+                navigator.clipboard.writeText(history[index].text)
+                    .then(() => {
+                        statusElement.textContent = 'Texto do histórico copiado!';
+                        setTimeout(() => {
+                            statusElement.textContent = 'Clique no microfone para gravar novamente';
+                        }, 2000);
+                    })
+                    .catch(err => {
+                        console.error('Erro ao copiar:', err);
+                    });
+            }
+        };
+        
+        window.deleteHistoryItem = function(index) {
+            const history = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+            if (history[index]) {
+                history.splice(index, 1);
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+                loadHistory();
+            }
+        };
     </script>
 </body>
 </html>
