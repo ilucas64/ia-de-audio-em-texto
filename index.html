@@ -1,294 +1,272 @@
-<!DOCTYPE html>
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Transcrevo Áudios - Conversor de Voz para Texto</title>
-    <style>
-        /* Estilos Gerais */
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #6e8efb, #a777e3);
-            margin: 0;
-            padding: 0;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            color: #333;
-        }
-        
-        .container {
-            width: 90%;
-            max-width: 800px;
-            background-color: rgba(255, 255, 255, 0.9);
-            border-radius: 15px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-            padding: 30px;
-            margin: 40px 0;
-        }
-        
-        h1 {
-            color: #4a2c82;
-            text-align: center;
-            margin-bottom: 30px;
-            font-size: 2.5em;
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
-        }
-        
-        /* Área de Gravação */
-        .recording-section {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            margin-bottom: 30px;
-        }
-        
-        .mic-btn {
-            background-color: #ff4d4d;
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 80px;
-            height: 80px;
-            font-size: 24px;
-            cursor: pointer;
-            margin-bottom: 20px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-            transition: all 0.3s;
-        }
-        
-        .mic-btn:hover {
-            transform: scale(1.05);
-            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.25);
-        }
-        
-        .mic-btn.recording {
-            background-color: #4CAF50;
-            animation: pulse 1.5s infinite;
-        }
-        
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.1); }
-            100% { transform: scale(1); }
-        }
-        
-        .status {
-            font-size: 1.2em;
-            margin-bottom: 15px;
-            font-weight: bold;
-            color: #4a2c82;
-        }
-        
-        /* Área de Resultado */
-        .result-section {
-            margin-top: 20px;
-        }
-        
-        textarea {
-            width: 100%;
-            min-height: 150px;
-            padding: 15px;
-            border-radius: 8px;
-            border: 2px solid #ddd;
-            font-size: 16px;
-            resize: vertical;
-            margin-bottom: 15px;
-        }
-        
-        .action-buttons {
-            display: flex;
-            justify-content: space-between;
-            gap: 10px;
-        }
-        
-        button {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 5px;
-            font-size: 16px;
-            cursor: pointer;
-            transition: all 0.3s;
-            flex: 1;
-        }
-        
-        .copy-btn {
-            background-color: #4a2c82;
-            color: white;
-        }
-        
-        .clear-btn {
-            background-color: #f44336;
-            color: white;
-        }
-        
-        .save-btn {
-            background-color: #4CAF50;
-            color: white;
-        }
-        
-        button:hover {
-            opacity: 0.9;
-            transform: translateY(-2px);
-        }
-        
-        /* Rodapé */
-        footer {
-            margin-top: auto;
-            padding: 20px;
-            text-align: center;
-            color: white;
-            font-size: 0.9em;
-        }
-        
-        /* Responsividade */
-        @media (max-width: 600px) {
-            .container {
-                width: 95%;
-                padding: 20px;
-            }
-            
-            h1 {
-                font-size: 1.8em;
-            }
-            
-            .action-buttons {
-                flex-direction: column;
-            }
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <title>IA Inteligente Local</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(to bottom, #dbeafe, #f8fafc);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+    }
+
+    h1 {
+      color: #1e3a8a;
+      font-size: 2.5em;
+      margin-bottom: 10px;
+    }
+
+    button {
+      font-size: 18px;
+      padding: 15px 30px;
+      margin: 10px;
+      border-radius: 40px;
+      background-color: #2563eb;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+
+    button:hover {
+      background-color: #1d4ed8;
+    }
+
+    button.listening {
+      background-color: #dc2626;
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0px #dc2626; }
+      50% { box-shadow: 0 0 15px #dc2626; }
+      100% { box-shadow: 0 0 0px #dc2626; }
+    }
+
+    #textResult {
+      width: 90%;
+      max-width: 600px;
+      height: 80px;
+      font-size: 16px;
+      margin-top: 10px;
+      border-radius: 10px;
+      padding: 10px;
+      background-color: #fefefe;
+      border: 1px solid #ccc;
+      resize: none;
+      box-shadow: 0 0 5px rgba(0,0,0,0.1);
+    }
+
+    #chatLog {
+      width: 90%;
+      max-width: 600px;
+      margin-top: 20px;
+      padding: 20px;
+      background: #ffffff;
+      border-radius: 12px;
+      text-align: left;
+      box-shadow: 0 0 10px rgba(0,0,0,0.08);
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .user { color: #1d4ed8; margin-bottom: 5px; font-weight: bold; }
+    .ia { color: #059669; margin-bottom: 15px; }
+    .loading { color: #6b7280; font-style: italic; }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h1>TRANSCREVO ÁUDIOS 🎤</h1>
-        
-        <div class="recording-section">
-            <button class="mic-btn" id="micButton">🎤</button>
-            <div class="status" id="status">Clique no microfone para começar</div>
-        </div>
-        
-        <div class="result-section">
-            <textarea id="textResult" placeholder="Seu texto aparecerá aqui..."></textarea>
-            <div class="action-buttons">
-                <button class="copy-btn" id="copyButton">Copiar Texto</button>
-                <button class="clear-btn" id="clearButton">Limpar</button>
-                <button class="save-btn" id="saveButton">Salvar como TXT</button>
-            </div>
-        </div>
-    </div>
-    
-    <footer>
-        Converte mensagens de voz em texto | Criado com ❤️ para você
-    </footer>
+  <h1>🧠 IA Local Inteligente</h1>
+  <button id="micButton" onclick="toggleMic()">🎤 Falar</button>
+  <button id="clearButton" onclick="clearChat()">🗑️ Limpar Chat</button>
+  <textarea id="textResult" readonly></textarea>
+  <div id="chatLog"></div>
 
-    <script>
-        // Elementos do DOM
-        const micButton = document.getElementById('micButton');
-        const statusElement = document.getElementById('status');
-        const textResult = document.getElementById('textResult');
-        const copyButton = document.getElementById('copyButton');
-        const clearButton = document.getElementById('clearButton');
-        const saveButton = document.getElementById('saveButton');
-        
-        // Verifica se o navegador suporta a API Web Speech
-        if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-            statusElement.textContent = 'Seu navegador não suporta reconhecimento de voz. Tente usar Chrome ou Edge.';
-            micButton.disabled = true;
+  <script>
+    const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+    recognition.lang = "pt-BR";
+    recognition.interimResults = true;
+    recognition.continuous = false; // Garante que o reconhecimento pare após cada fala
+
+    let finalTranscript = "";
+    let isListening = false;
+
+    const textResult = document.getElementById("textResult");
+    const micButton = document.getElementById("micButton");
+    const chatLog = document.getElementById("chatLog");
+
+    function toggleMic() {
+      if (!isListening) {
+        finalTranscript = "";
+        textResult.value = "";
+        recognition.start();
+        micButton.classList.add("listening");
+        micButton.textContent = "🔴 Gravando...";
+        isListening = true;
+      } else {
+        recognition.stop();
+      }
+    }
+
+    recognition.onresult = (event) => {
+      let interim = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const txt = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalTranscript += txt + " ";
         } else {
-            // Cria o objeto de reconhecimento de voz
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            const recognition = new SpeechRecognition();
-            
-            // Configurações do reconhecimento
-            recognition.continuous = true;
-            recognition.interimResults = true;
-            recognition.lang = 'pt-BR';
-            
-            // Evento de clique no microfone
-            micButton.addEventListener('click', () => {
-                if (micButton.classList.contains('recording')) {
-                    // Parar gravação
-                    recognition.stop();
-                    micButton.classList.remove('recording');
-                    statusElement.textContent = 'Gravação parada. Clique para gravar novamente.';
-                } else {
-                    // Começar gravação
-                    recognition.start();
-                    micButton.classList.add('recording');
-                    statusElement.textContent = 'Gravando... Fale agora!';
-                }
-            });
-            
-            // Evento de resultado
-            recognition.onresult = (event) => {
-                let interimTranscript = '';
-                let finalTranscript = '';
-                
-                for (let i = event.resultIndex; i < event.results.length; i++) {
-                    const transcript = event.results[i][0].transcript;
-                    if (event.results[i].isFinal) {
-                        finalTranscript += transcript + ' ';
-                    } else {
-                        interimTranscript += transcript;
-                    }
-                }
-                
-                textResult.value = finalTranscript + interimTranscript;
-            };
-            
-            // Eventos de erro
-            recognition.onerror = (event) => {
-                console.error('Erro no reconhecimento:', event.error);
-                micButton.classList.remove('recording');
-                statusElement.textContent = `Erro: ${event.error}. Clique para tentar novamente.`;
-            };
-            
-            recognition.onend = () => {
-                if (micButton.classList.contains('recording')) {
-                    recognition.start(); // Reinicia se ainda estiver no modo de gravação
-                }
-            };
+          interim += txt;
         }
-        
-        // Botão de copiar
-        copyButton.addEventListener('click', () => {
-            textResult.select();
-            document.execCommand('copy');
-            statusElement.textContent = 'Texto copiado para a área de transferência!';
-            setTimeout(() => {
-                statusElement.textContent = 'Clique no microfone para gravar novamente';
-            }, 2000);
-        });
-        
-        // Botão de limpar
-        clearButton.addEventListener('click', () => {
-            textResult.value = '';
-            statusElement.textContent = 'Área de texto limpa. Clique no microfone para gravar.';
-        });
-        
-        // Botão de salvar
-        saveButton.addEventListener('click', () => {
-            if (textResult.value.trim() === '') {
-                statusElement.textContent = 'Nada para salvar. Grave algum áudio primeiro.';
-                return;
-            }
-            
-            const blob = new Blob([textResult.value], { type: 'text/plain' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'transcricao.txt';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            
-            statusElement.textContent = 'Transcrição salva como arquivo TXT!';
-            setTimeout(() => {
-                statusElement.textContent = 'Clique no microfone para gravar novamente';
-            }, 2000);
-        });
-    </script>
+      }
+      textResult.value = finalTranscript + interim;
+    };
+
+    recognition.onend = () => {
+      if (isListening) {
+        // Reinicia o reconhecimento para evitar problemas na segunda tentativa
+        recognition.start();
+      } else {
+        if (finalTranscript.trim()) {
+          const userText = finalTranscript.trim();
+          addToChat("🗣️ Você: " + userText, "user");
+          addToChat("🤖 IA: Processando...", "ia loading");
+          setTimeout(() => {
+            const resposta = processarPergunta(userText);
+            chatLog.lastChild.innerText = "🤖 IA: " + resposta;
+            chatLog.lastChild.className = "ia";
+          }, 500); // Simula um pequeno atraso para parecer mais natural
+        }
+        micButton.classList.remove("listening");
+        micButton.textContent = "🎤 Falar";
+      }
+    };
+
+    recognition.onerror = (event) => {
+      addToChat("🤖 IA: Desculpe, houve um erro no reconhecimento de voz: " + event.error, "ia");
+      micButton.classList.remove("listening");
+      micButton.textContent = "🎤 Falar";
+      isListening = false;
+    };
+
+    function addToChat(texto, classe) {
+      const div = document.createElement("div");
+      div.className = classe;
+      div.innerText = texto;
+      chatLog.appendChild(div);
+      chatLog.scrollTop = chatLog.scrollHeight;
+    }
+
+    function clearChat() {
+      chatLog.innerHTML = "";
+    }
+
+    function processarPergunta(pergunta) {
+      const texto = pergunta.toLowerCase().trim();
+
+      // Saudações básicas
+      if (["oi", "olá", "e aí", "fala", "opa"].some(p => texto.includes(p))) 
+        return "Oi! Estou pronta para ajudar. O que você quer saber hoje?";
+      if (texto.includes("bom dia")) 
+        return "Bom dia! Espero que seu dia esteja começando bem! 😊";
+      if (texto.includes("boa tarde")) 
+        return "Boa tarde! Como posso te ajudar agora?";
+      if (texto.includes("boa noite")) 
+        return "Boa noite! Quer conversar sobre algo especial?";
+
+      // Interações pessoais
+      if (texto.includes("tudo bem")) 
+        return "Tudo ótimo por aqui! E contigo, como tá?";
+      if (texto.includes("qual seu nome")) 
+        return "Eu sou Grok, sua IA local super amigável!";
+      if (texto.includes("como você está")) 
+        return "Tô de boa, pronta pra responder suas perguntas! 😄";
+      if (texto.includes("obrigado") || texto.includes("valeu")) 
+        return "Por nada! Sempre que precisar, é só chamar.";
+      if (texto.includes("quem é você")) 
+        return "Sou Grok, uma IA criada pela xAI para ajudar com perguntas e cálculos, tudo localmente!";
+      if (texto.includes("ajuda")) 
+        return "Posso ajudar com cálculos, responder perguntas ou só bater um papo. Tenta algo como 'qual a capital do Brasil?' ou 'quanto é 10 por cento de 200?'";
+      if (texto.includes("o que você sabe fazer")) 
+        return "Eu converso, resolvo contas, respondo perguntas sobre fatos gerais e até dou uma mãozinha com curiosidades. Experimenta perguntar algo!";
+
+      // Informações factuais
+      if (texto.includes("capital do brasil")) 
+        return "A capital do Brasil é Brasília.";
+      if (texto.includes("maior planeta")) 
+        return "O maior planeta do sistema solar é Júpiter.";
+      if (texto.includes("quem descobriu o brasil")) 
+        return "O Brasil foi descoberto oficialmente por Pedro Álvares Cabral em 22 de abril de 1500.";
+      if (texto.includes("quantos continentes")) 
+        return "Existem sete continentes habitados: África, Antártida, Ásia, Austrália, Europa, América do Norte e América do Sul.";
+
+      // Cálculos matemáticos
+      try {
+        const expressao = texto
+          .replace("quanto é", "")
+          .replace("calcule", "")
+          .replace("dividido por", "/")
+          .replace("vezes", "*")
+          .replace("mais", "+")
+          .replace("menos", "-")
+          .replace("raiz quadrada de", "Math.sqrt")
+          .replace("elevado a", "**")
+          .replace(/(\d+)\s*por\s*cento\s*de\s*(\d+)/, "($1/100)*$2"); // Suporte a porcentagens
+
+        if (/[\d\s\+\-\*\/\.\(\)sqrt]/.test(expressao)) {
+          const resultado = Function('"use strict";return (' + expressao + ')')();
+          if (!isNaN(resultado)) 
+            return "O resultado é: " + resultado.toFixed(2).replace(/\.00$/, "");
+        }
+      } catch (e) {
+        return "Hmm, não consegui calcular isso. Tenta reformular a expressão, por favor!";
+      }
+
+      // Resposta padrão
+      return "Desculpe, não entendi direito. Tenta reformular ou perguntar algo como 'qual a capital do Brasil?' ou 'calcule 5 vezes 3'.";
+    }
+  </script>
 </body>
 </html>
