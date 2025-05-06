@@ -68,7 +68,7 @@
       color: white;
       border: none;
       cursor: pointer;
-      transition: 0.3s;
+      transition: background-color 0.3s, opacity 0.3s;
     }
 
     button:hover {
@@ -78,6 +78,12 @@
     button.listening {
       background-color: #dc2626;
       animation: pulse 1s infinite;
+    }
+
+    button:disabled {
+      background-color: #6b7280;
+      cursor: not-allowed;
+      opacity: 0.6;
     }
 
     @keyframes pulse {
@@ -111,11 +117,39 @@
       box-shadow: 0 0 10px rgba(0,0,0,0.08);
       max-height: 400px;
       overflow-y: auto;
+      line-height: 1.5;
     }
 
     .user { color: #1d4ed8; margin-bottom: 5px; font-weight: bold; }
     .ia { color: #059669; margin-bottom: 15px; }
     .loading { color: #6b7280; font-style: italic; }
+    .speaking::before {
+      content: "🔊 ";
+      animation: speakingPulse 0.5s infinite;
+    }
+
+    .repeat-button {
+      display: inline-block;
+      font-size: 14px;
+      padding: 5px 10px;
+      margin-left: 10px;
+      border-radius: 20px;
+      background-color: #059669;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+
+    .repeat-button:hover {
+      background-color: #047857;
+    }
+
+    @keyframes speakingPulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.5; }
+      100% { opacity: 1; }
+    }
   </style>
 </head>
 <body>
@@ -126,28 +160,67 @@
   <div id="chatLog"></div>
 
   <script>
-    const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+    // Verifica suporte ao SpeechRecognition
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      addToChat("🤖 IA: Seu navegador não suporta reconhecimento de voz. Tente usar Chrome ou Edge.", "ia");
+      document.getElementById("micButton").disabled = true;
+    }
+
+    const recognition = new SpeechRecognition();
     recognition.lang = "pt-BR";
     recognition.interimResults = true;
-    recognition.continuous = false; // Garante que o reconhecimento pare após cada fala
+    recognition.continuous = false;
+    recognition.maxAlternatives = 1;
 
     let finalTranscript = "";
     let isListening = false;
+    let isSpeaking = false;
+    let utterance = null;
+    let lastIAResponse = "";
 
     const textResult = document.getElementById("textResult");
     const micButton = document.getElementById("micButton");
     const chatLog = document.getElementById("chatLog");
 
-    function toggleMic() {
+    // Verifica permissões do microfone
+    async function checkMicPermission() {
+      try {
+        const permission = await navigator.permissions.query({ name: "microphone" });
+        if (permission.state === "denied") {
+          addToChat("🤖 IA: Permissão para o microfone foi negada. Habilite nas configurações do navegador.", "ia");
+          micButton.disabled = true;
+          return false;
+        }
+        return true;
+      } catch (e) {
+        console.error("Erro ao verificar permissões do microfone:", e);
+        return true;
+      }
+    }
+
+    async function toggleMic() {
       if (!isListening) {
+        if (!(await checkMicPermission())) return;
+
         finalTranscript = "";
         textResult.value = "";
-        recognition.start();
-        micButton.classList.add("listening");
-        micButton.textContent = "🔴 Gravando...";
-        isListening = true;
+        try {
+          recognition.start();
+          console.log("Reconhecimento de voz iniciado");
+          micButton.classList.add("listening");
+          micButton.textContent = "🔴 Gravando...";
+          isListening = true;
+        } catch (e) {
+          console.error("Erro ao iniciar reconhecimento:", e);
+          addToChat("🤖 IA: Erro ao iniciar o microfone: " + e.message, "ia");
+        }
       } else {
         recognition.stop();
+        console.log("Reconhecimento de voz parado");
+        micButton.classList.remove("listening");
+        micButton.textContent = "🎤 Falar";
+        isListening = false;
       }
     }
 
@@ -162,30 +235,40 @@
         }
       }
       textResult.value = finalTranscript + interim;
+      console.log("Resultado parcial:", textResult.value);
     };
 
     recognition.onend = () => {
-      if (isListening) {
-        // Reinicia o reconhecimento para evitar problemas na segunda tentativa
-        recognition.start();
-      } else {
-        if (finalTranscript.trim()) {
-          const userText = finalTranscript.trim();
-          addToChat("🗣️ Você: " + userText, "user");
-          addToChat("🤖 IA: Processando...", "ia loading");
-          setTimeout(() => {
-            const resposta = processarPergunta(userText);
-            chatLog.lastChild.innerText = "🤖 IA: " + resposta;
-            chatLog.lastChild.className = "ia";
-          }, 500); // Simula um pequeno atraso para parecer mais natural
-        }
-        micButton.classList.remove("listening");
-        micButton.textContent = "🎤 Falar";
+      console.log("Reconhecimento de voz finalizado");
+      if (finalTranscript.trim()) {
+        const userText = finalTranscript.trim();
+        addToChat("🗣️ Você: " + userText, "user");
+        addToChat("🤖 IA: Processando...", "ia loading");
+        setTimeout(() => {
+          const resposta = processarPergunta(userText);
+          lastIAResponse = resposta;
+          updateLastIAMessage(resposta);
+          speak(resposta);
+        }, 500);
       }
+      micButton.classList.remove("listening");
+      micButton.textContent = "🎤 Falar";
+      isListening = false;
     };
 
     recognition.onerror = (event) => {
-      addToChat("🤖 IA: Desculpe, houve um erro no reconhecimento de voz: " + event.error, "ia");
+      let errorMessage = "Erro no reconhecimento de voz: ";
+      if (event.error === "no-speech") {
+        errorMessage += "Nenhum som detectado. Verifique se o microfone está funcionando.";
+      } else if (event.error === "audio-capture") {
+        errorMessage += "Microfone não disponível. Verifique as permissões ou conecte um microfone.";
+      } else if (event.error === "not-allowed") {
+        errorMessage += "Permissão para o microfone negada. Habilite nas configurações do navegador.";
+      } else {
+        errorMessage += event.error;
+      }
+      console.error("Erro no reconhecimento:", event.error);
+      addToChat("🤖 IA: " + errorMessage, "ia");
       micButton.classList.remove("listening");
       micButton.textContent = "🎤 Falar";
       isListening = false;
@@ -199,14 +282,79 @@
       chatLog.scrollTop = chatLog.scrollHeight;
     }
 
+    function updateLastIAMessage(texto) {
+      // Remove botão de repetição de mensagens anteriores
+      const previousButtons = chatLog.querySelectorAll(".repeat-button");
+      previousButtons.forEach(button => button.remove());
+
+      // Atualiza a última mensagem
+      const lastMessage = chatLog.lastChild;
+      lastMessage.innerText = "🤖 IA: " + texto;
+      lastMessage.className = "ia";
+
+      // Adiciona botão de repetição
+      const repeatButton = document.createElement("button");
+      repeatButton.className = "repeat-button";
+      repeatButton.innerText = "🔊 Repetir";
+      repeatButton.onclick = () => speak(texto);
+      lastMessage.appendChild(repeatButton);
+    }
+
     function clearChat() {
       chatLog.innerHTML = "";
+      stopSpeaking();
+      lastIAResponse = "";
     }
+
+    function speak(texto) {
+      if (!window.speechSynthesis) {
+        addToChat("🤖 IA: Desculpe, a síntese de voz não é suportada neste navegador.", "ia");
+        return;
+      }
+
+      stopSpeaking();
+
+      utterance = new SpeechSynthesisUtterance(texto);
+      utterance.lang = "pt-BR";
+      utterance.pitch = 1.0;
+      utterance.rate = 1.0;
+      utterance.volume = 1.0;
+
+      const voices = speechSynthesis.getVoices();
+      const ptBrVoice = voices.find(voice => voice.lang === "pt-BR") || voices[0];
+      utterance.voice = ptBrVoice;
+
+      utterance.onstart = () => {
+        isSpeaking = true;
+        chatLog.lastChild.classList.add("speaking");
+      };
+
+      utterance.onend = () => {
+        isSpeaking = false;
+        chatLog.lastChild.classList.remove("speaking");
+      };
+
+      window.speechSynthesis.speak(utterance);
+    }
+
+    function stopSpeaking() {
+      if (isSpeaking) {
+        window.speechSynthesis.cancel();
+        isSpeaking = false;
+        if (chatLog.lastChild) {
+          chatLog.lastChild.classList.remove("speaking");
+        }
+      }
+    }
+
+    window.speechSynthesis.onvoiceschanged = () => {
+      const voices = speechSynthesis.getVoices();
+      console.log("Vozes disponíveis:", voices);
+    };
 
     function processarPergunta(pergunta) {
       const texto = pergunta.toLowerCase().trim();
 
-      // Saudações básicas
       if (["oi", "olá", "e aí", "fala", "opa"].some(p => texto.includes(p))) 
         return "Oi! Estou pronta para ajudar. O que você quer saber hoje?";
       if (texto.includes("bom dia")) 
@@ -216,7 +364,6 @@
       if (texto.includes("boa noite")) 
         return "Boa noite! Quer conversar sobre algo especial?";
 
-      // Interações pessoais
       if (texto.includes("tudo bem")) 
         return "Tudo ótimo por aqui! E contigo, como tá?";
       if (texto.includes("qual seu nome")) 
@@ -232,7 +379,6 @@
       if (texto.includes("o que você sabe fazer")) 
         return "Eu converso, resolvo contas, respondo perguntas sobre fatos gerais e até dou uma mãozinha com curiosidades. Experimenta perguntar algo!";
 
-      // Informações factuais
       if (texto.includes("capital do brasil")) 
         return "A capital do Brasil é Brasília.";
       if (texto.includes("maior planeta")) 
@@ -242,7 +388,6 @@
       if (texto.includes("quantos continentes")) 
         return "Existem sete continentes habitados: África, Antártida, Ásia, Austrália, Europa, América do Norte e América do Sul.";
 
-      // Cálculos matemáticos
       try {
         const expressao = texto
           .replace("quanto é", "")
@@ -253,7 +398,7 @@
           .replace("menos", "-")
           .replace("raiz quadrada de", "Math.sqrt")
           .replace("elevado a", "**")
-          .replace(/(\d+)\s*por\s*cento\s*de\s*(\d+)/, "($1/100)*$2"); // Suporte a porcentagens
+          .replace(/(\d+)\s*por\s*cento\s*de\s*(\d+)/, "($1/100)*$2");
 
         if (/[\d\s\+\-\*\/\.\(\)sqrt]/.test(expressao)) {
           const resultado = Function('"use strict";return (' + expressao + ')')();
@@ -264,7 +409,6 @@
         return "Hmm, não consegui calcular isso. Tenta reformular a expressão, por favor!";
       }
 
-      // Resposta padrão
       return "Desculpe, não entendi direito. Tenta reformular ou perguntar algo como 'qual a capital do Brasil?' ou 'calcule 5 vezes 3'.";
     }
   </script>
